@@ -29,14 +29,64 @@ double x[MAXN], y[MAXN];
 int N, M, P, Q;
 int b[500], e[500];
 int total;
+float currentX = 50, currentY = 50;
+int windowWidth = 800, windowHeight = 600;
 
-void display(void) {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glPointSize(5.0);
+int MaxXIndex(void){
+  int m = 0;
+  for(int i=1;i<total;i++){
+    if(x[m]<x[i]) m=i;
+  }
+  return m;
+}
+
+int MinXIndex(void){
+  int m = 0;
+  for(int i=1;i<total;i++){
+    if(x[m]>x[i]) m=i;
+  }
+  return m;
+}
+
+int MaxYIndex(void){
+  int m = 0;
+  for(int i=1;i<total;i++){
+    if(y[m]<y[i]) m=i;
+  }
+  return m;
+}
+
+int MinYIndex(void){
+  int m = 0;
+  for(int i=1;i<total;i++){
+    if(y[m]<y[i]) m=i;
+  }
+  return m;
+}
+
+void drawText(float x, float y, const char *text){
+  glRasterPos2f(x, y);
+  while(*text){
+    glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *text);
+    text++;
+  }
+}
+
+void drawMap(float scale){
+   glPointSize(5.0);
+   double disX = x[MaxXIndex()] - x[MinXIndex()];
+   double disY = y[MaxXIndex()] - y[MinXIndex()];
 
     // 座標系を原点中心に調整
-    glPushMatrix();
-    glScaled(1.0 / 1000.0, 1.0 / 1000.0, 1.0);  // 仮のスケーリング
+    //glPushMatrix();
+    //glScaled(1.0 / 1000.0, 1.0 / 1000.0, 1.0);
+
+    glColor3f(0.1,0.1,1.0);
+    glBegin(GL_TRIANGLES);
+    glVertex3f(0.6, 0.6, 0.0);
+    glVertex3f(0.9, 0.6, 0.0);
+    glVertex3f(0.8, 0.9, 0.0);
+    glEnd();
 
     // 道（エッジ）の描画（灰色）
     glColor3f(0.5, 0.5, 0.5);
@@ -45,38 +95,90 @@ void display(void) {
             int to = graph[i][j].to;
             if (i < to) { // 重複防止
                 glBegin(GL_LINES);
-                glVertex2d(x[i], y[i]);
-                glVertex2d(x[to], y[to]);
+                glVertex2d(x[i]/disX, y[i]/disY);
+                glVertex2d(x[to]/disX, y[to]/disY);
                 glEnd();
             }
         }
     }
-
     // 地点の描画（赤）
     glColor3f(1.0, 0.0, 0.0);
     glBegin(GL_POINTS);
     for (int i = 0; i < N; i++) {
-        glVertex2d(x[i], y[i]);
+        glVertex2d(x[i]/disX, y[i]/disY);
     }
     glEnd();
 
+    char label[5];
     // 交点（C）の描画（青）
     glColor3f(0.0, 0.0, 1.0);
     glBegin(GL_POINTS);
     for (int i = N; i < total; i++) {
-        glVertex2d(x[i], y[i]);
+      sprintf(label, "%d", i);
+        glVertex2d(x[i]/disX, y[i]/disY);
+	drawText(x[i]+0.1, y[i]+0.1, label);
     }
     glEnd();
 
+    //glPopMatrix();
+
+    glColor3f(0.0, 0.0, 0.0);
+    glPointSize(8.0);
+    glBegin(GL_POINTS);
+    glVertex2f(currentX*scale, currentY*scale);
+    glEnd();
+}
+
+void display(void) {
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    //mainMap
+    glViewport(0, 0, windowWidth, windowHeight);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(currentX - 100, currentX+100, currentY-75, currentY+75);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    drawMap(1.0);
+
+    //miniMap
+    //glClearColor(0.7, 0.7, 0.7, 0.7);
+
+    glPushMatrix();
+    glScaled(0.25, 0.25, 1.0);
+    glViewport(windowWidth-200, windowHeight-200, 200, 200);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0, 100, 0, 100);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    drawMap(1.0);
     glPopMatrix();
-    glFlush();
+
+    glutSwapBuffers();
 }
 
 void init(void) {
     glClearColor(1.0, 1.0, 1.0, 1.0); // 背景色白
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluOrtho2D(-100, 1000, -100, 1000); // 仮のウィンドウ座標系
+    gluOrtho2D(-1, 1, -1, 1); // 仮のウィンドウ座標系
+}
+
+void reshape(int w, int h){
+  windowWidth = w;
+  windowHeight = h;
+  glViewport(0, 0, w, h);
+}
+
+void keyboard(int key, int x, int y){
+  switch(key){
+  case GLUT_KEY_LEFT: currentX-=2; break;
+  case GLUT_KEY_RIGHT: currentX+=2; break;
+  case GLUT_KEY_UP: currentY+=2; break;
+  case GLUT_KEY_DOWN: currentY-=2; break;
+  }
+  glutPostRedisplay();
 }
 
 void draw_window(int argc, char** argv) {
@@ -87,6 +189,8 @@ void draw_window(int argc, char** argv) {
     glutCreateWindow("Map Viewer");
     init();
     glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
+    glutSpecialFunc(keyboard);
     glutMainLoop();
 }
 
