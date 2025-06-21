@@ -32,6 +32,8 @@ int total;
 float currentX = 50, currentY = 50;
 int windowWidth = 800, windowHeight = 600;
 
+float zoom = 0.5f;
+
 int MaxXIndex(void){
   int m = 0;
   for(int i=1;i<total;i++){
@@ -59,7 +61,7 @@ int MaxYIndex(void){
 int MinYIndex(void){
   int m = 0;
   for(int i=1;i<total;i++){
-    if(y[m]<y[i]) m=i;
+    if(y[m]>y[i]) m=i;
   }
   return m;
 }
@@ -79,13 +81,6 @@ void drawMap(float scale, double minX, double minY, double disX, double disY){
     //glPushMatrix();
     //glScaled(1.0 / 1000.0, 1.0 / 1000.0, 1.0);
 
-    glColor3f(0.1,0.1,1.0);
-    glBegin(GL_TRIANGLES);
-    glVertex3f(0.6, 0.6, 0.0);
-    glVertex3f(0.9, 0.6, 0.0);
-    glVertex3f(0.8, 0.9, 0.0);
-    glEnd();
-
     // ¹iGbWjÌ`æiDFj
     glColor3f(0.5, 0.5, 0.5);
     for (int i = 0; i < MAXN; i++) {
@@ -93,8 +88,10 @@ void drawMap(float scale, double minX, double minY, double disX, double disY){
             int to = graph[i][j].to;
             if (i < to) { // d¡h~
                 glBegin(GL_LINES);
-                glVertex2d((x[i]-minX), (y[i]-minY));
-                glVertex2d((x[to]-minX), (y[to]-minY));
+                //glVertex2d((x[i]-minX), (y[i]-minY));
+                //glVertex2d((x[to]-minX), (y[to]-minY));
+		glVertex2d(x[i], y[i]);
+                glVertex2d(x[to], y[to]);
                 glEnd();
             }
         }
@@ -103,28 +100,34 @@ void drawMap(float scale, double minX, double minY, double disX, double disY){
     glColor3f(1.0, 0.0, 0.0);
     glBegin(GL_POINTS);
     for (int i = 0; i < N; i++) {
-        glVertex2d((x[i]-minX), (y[i]-minY));
+      //glVertex2d((x[i]-minX), (y[i]-minY));
+      glVertex2d(x[i], y[i]);
     }
     glEnd();
-
-    char label[5];
+    
     // ð_iCjÌ`æiÂj
     glColor3f(0.0, 0.0, 1.0);
     glBegin(GL_POINTS);
     for (int i = N; i < total; i++) {
-      sprintf(label, "%d", i);
-        glVertex2d((x[i]-minX), (y[i]-minY));
-	drawText(x[i]+0.1, y[i]+0.1, label);
+      //glVertex2d((x[i]-minX), (y[i]-minY));
+	glVertex2d(x[i], y[i]);
     }
     glEnd();
 
+    /*for (int i = 0; i < total; i++) {
+    char label[100];
+    sprintf(label, "C%d (%.1f, %.1f)", i - N + 1, x[i], y[i]);
+    drawText(x[i] + 0.05, y[i] + 0.05, label);
+    }*/
+
     //glPopMatrix();
 
-    glColor3f(0.0, 0.0, 0.0);
+    /*glColor3f(0.0, 0.0, 0.0);
     glPointSize(8.0);
     glBegin(GL_POINTS);
-    glVertex2f((currentX - minX), (currentY - minY));
-    glEnd();
+    //glVertex2f((currentX - minX), (currentY - minY));
+    glVertex2f((currentX), (currentY));
+    glEnd();*/
 }
 
 void display(void) {
@@ -136,69 +139,82 @@ void display(void) {
     double maxY = y[MaxYIndex()];
     double disX = maxX - minX;
     double disY = maxY - minY;
+    
 
     // \¦{¦in}ÌTCYªLªêÎ©®IÉgå¦ª¬³­Èéj
-double zoomRate = 0.5;  // {¦i0.5 = n}Ì50%TCYª\¦³êéj
+    //double zoomRate = 0.5;  // {¦i0.5 = n}Ì50%TCYª\¦³êéj
 
 // ©®Å\¦ÍÍðZo
-double viewWidth = disX * zoomRate;
-double viewHeight = disY * zoomRate;
+double viewWidth = disX / 3.0 * zoom;   // i³Í}100j
+double viewHeight = disY / 3.0 * zoom; 
 
     //mainMap
     glViewport(0, 0, windowWidth, windowHeight);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluOrtho2D(currentX - 100, currentX+100, currentY-75, currentY+75);
+    gluOrtho2D(currentX - viewWidth / 2, currentX + viewWidth / 2,
+           currentY - viewHeight / 2, currentY + viewHeight / 2);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     drawMap(1.0, minX, minY, disX, disY);
+
+    for (int i = 0; i < total; i++) {
+    char label[100];
+    sprintf(label, "C%d (%.1f, %.1f)", i - N + 1, x[i], y[i]);
+    drawText(x[i] + 0.05, y[i] + 0.05, label);
+    }
 
     //miniMap
     //glClearColor(0.7, 0.7, 0.7, 0.7);
 
     //glPushMatrix();
     //glScaled(0.25, 0.25, 1.0);
+    
     int miniMapSize = 200;
+    double padX = disX * 0.05, padY = disY * 0.05;
     glViewport(windowWidth-miniMapSize, windowHeight-miniMapSize, miniMapSize, miniMapSize);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluOrtho2D(0, disX, 0, disY);
+    gluOrtho2D(minX - padX, maxX + padX, minY - padY, maxY + padY);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     
     drawMap(1.0, minX, minY, disX, disY);
     
-    glColor3f(0.6, 0.6, 0.6);
-    glBegin(GL_LINE_LOOP);
-    glVertex2f(0, 0);
-    glVertex2f(disX, 0);
-    glVertex2f(disX, disY);
-    glVertex2f(0, disY);
-    glEnd();
-    //glPopMatrix();
+   glColor3f(0.6, 0.6, 0.6);
+glBegin(GL_LINE_LOOP);
+glVertex2f(minX - padX*0.5, minY - padY*0.5);
+glVertex2f(maxX + padX*0.5, minY - padY*0.5);
+glVertex2f(maxX + padX*0.5, maxY + padY*0.5);
+glVertex2f(minX - padX*0.5, maxY + padY*0.5);
+glEnd();
 
-     double viewMinX = currentX - 50 - minX;
-    double viewMaxX = currentX + 50 - minX;
-    double viewMinY = currentY - 37.5 - minY;
-    double viewMaxY = currentY + 37.5 - minY;
+double vw = viewWidth, vh = viewHeight;
+double viewMinX = currentX - minX - vw / 2.0;
+double viewMaxX = currentX - minX + vw / 2.0;
+double viewMinY = currentY - minY - vh / 2.0;
+double viewMaxY = currentY - minY + vh / 2.0;
 
-    glColor3f(0.0, 0.0, 0.0);  // g
-    glBegin(GL_LINE_LOOP);
-    glVertex2f(viewMinX, viewMinY);
-    glVertex2f(viewMaxX, viewMinY);
-    glVertex2f(viewMaxX, viewMaxY);
-    glVertex2f(viewMinX, viewMaxY);
-    glEnd();
+glColor3f(0.0, 0.0, 0.0);
+glBegin(GL_LINE_LOOP);
+glVertex2f(viewMinX, viewMinY);
+glVertex2f(viewMaxX, viewMinY);
+glVertex2f(viewMaxX, viewMaxY);
+glVertex2f(viewMinX, viewMaxY);
+glEnd();
 
 
     glutSwapBuffers();
 }
 
 void init(void) {
+    currentX = (x[MinXIndex()] + x[MaxXIndex()]) / 2.0;
+    currentY = (y[MinYIndex()] + y[MaxYIndex()]) / 2.0;
     glClearColor(1.0, 1.0, 1.0, 1.0); // wiF
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluOrtho2D(-1, 1, -1, 1); // ¼ÌEBhEÀWn
+    
 }
 
 void reshape(int w, int h){
@@ -207,13 +223,35 @@ void reshape(int w, int h){
   glViewport(0, 0, w, h);
 }
 
-void keyboard(int key, int x, int y){
-  switch(key){
-  case GLUT_KEY_LEFT: currentX-=2; break;
-  case GLUT_KEY_RIGHT: currentX+=2; break;
-  case GLUT_KEY_UP: currentY+=2; break;
-  case GLUT_KEY_DOWN: currentY-=2; break;
-  }
+void keyboard(unsigned char key, int x, int y){
+  switch (key) {
+        case 'a':  // ¶Ú®
+            currentX -= 1 * zoom;
+            break;
+        case 'd':  // EÚ®
+            currentX += 1 * zoom;
+            break;
+        case 'w':  // ãÚ®
+            currentY += 1 * zoom;
+            break;
+        case 's':  // ºÚ®
+            currentY -= 1 * zoom;
+            break;
+        case '+':
+        case '=':
+            zoom *= 0.9f;
+            if (zoom < 0.1f) zoom = 0.1f;
+            break;
+        case '-':
+        case '_':
+            zoom *= 1.1f;
+            if (zoom > 5.0f) zoom = 5.0f;
+            break;
+        case 27:  // ESCL[
+            exit(0);
+            break;
+    }
+  printf("X = %f, Y = %f\n", currentX, currentY);
   glutPostRedisplay();
 }
 
@@ -226,7 +264,7 @@ void draw_window(int argc, char** argv) {
     init();
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
-    glutSpecialFunc(keyboard);
+    glutKeyboardFunc(keyboard);
     glutMainLoop();
 }
 
