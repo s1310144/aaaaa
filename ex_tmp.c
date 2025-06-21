@@ -67,11 +67,51 @@ int MinYIndex(void){
 }
 
 void drawText(float x, float y, const char *text){
+  glColor3f(0.f, 1.f, 0.f);
   glRasterPos2f(x, y);
   while(*text){
     glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *text);
     text++;
   }
+}
+
+void drawKeyHelp() {
+    // esñðÛ¶EØèÖ¦
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(0, windowWidth, 0, windowHeight);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glColor3f(0.0, 0.0, 0.0); // FeLXg
+
+    // ¶ãÈÌÅyÍ¢l©çnßÄºÉ¸ç·
+    int x = 10;
+    int y = windowHeight - 20;
+
+    const char *lines[] = {
+        "WASD : 移動",
+        "+ / - : ズームイン/アウト",
+        "ESC  : 終了"
+    };
+    int n = sizeof(lines) / sizeof(lines[0]);
+
+    for (int i = 0; i < n; i++) {
+        glRasterPos2i(x, y - i * 20);
+        const char *text = lines[i];
+        while (*text) {
+            glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *text++);
+        }
+    }
+
+    // sñ³
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
 }
 
 void drawMap(float scale, double minX, double minY, double disX, double disY){
@@ -158,11 +198,15 @@ double viewHeight = disY / 3.0 * zoom;
     glLoadIdentity();
     drawMap(1.0, minX, minY, disX, disY);
 
+    double dis = sqrt(disX * disX + disY * disY);
+
     for (int i = 0; i < total; i++) {
     char label[100];
     sprintf(label, "C%d (%.1f, %.1f)", i - N + 1, x[i], y[i]);
-    drawText(x[i] + 0.05, y[i] + 0.05, label);
+    drawText(x[i] + dis/500, y[i] + dis/500, label);
     }
+
+    drawKeyHelp();
 
     //miniMap
     //glClearColor(0.7, 0.7, 0.7, 0.7);
@@ -203,6 +247,7 @@ glVertex2f(viewMaxX, viewMaxY);
 glVertex2f(viewMinX, viewMaxY);
 glEnd();
 
+ 
 
     glutSwapBuffers();
 }
