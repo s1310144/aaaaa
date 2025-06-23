@@ -31,8 +31,9 @@ int b[500], e[500];
 int total;
 float currentX = 50, currentY = 50;
 int windowWidth = 800, windowHeight = 600;
+double maxX, maxY, minX, minY;
 
-float zoom = 0.5f;
+float zoom = 0.5f, zoomRate = 3.0f;
 
 int MaxXIndex(void){
   int m = 0;
@@ -67,7 +68,7 @@ int MinYIndex(void){
 }
 
 void drawText(float x, float y, const char *text){
-  glColor3f(0.f, 1.f, 0.f);
+  glColor3f(0.f, 1.f, 0.f); //
   glRasterPos2f(x, y);
   while(*text){
     glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *text);
@@ -76,7 +77,6 @@ void drawText(float x, float y, const char *text){
 }
 
 void drawKeyHelp() {
-    // esñðÛ¶EØèÖ¦
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
@@ -86,9 +86,8 @@ void drawKeyHelp() {
     glPushMatrix();
     glLoadIdentity();
 
-    glColor3f(0.0, 0.0, 0.0); // FeLXg
+    glColor3f(0.0, 0.0, 0.0); //テキストの色（黒）
 
-    // ¶ãÈÌÅyÍ¢l©çnßÄºÉ¸ç·
     int x = 10;
     int y = windowHeight - 20;
 
@@ -107,7 +106,6 @@ void drawKeyHelp() {
         }
     }
 
-    // sñ³
     glPopMatrix();
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
@@ -115,59 +113,36 @@ void drawKeyHelp() {
 }
 
 void drawMap(float scale, double minX, double minY, double disX, double disY){
-   glPointSize(5.0);
+    glPointSize(5.0);
 
-    // ÀWnð´_SÉ²®
-    //glPushMatrix();
-    //glScaled(1.0 / 1000.0, 1.0 / 1000.0, 1.0);
-
-    // ¹iGbWjÌ`æiDFj
+    // 道路（灰色）
     glColor3f(0.5, 0.5, 0.5);
     for (int i = 0; i < MAXN; i++) {
         for (int j = 0; j < gsize[i]; j++) {
             int to = graph[i][j].to;
-            if (i < to) { // d¡h~
+            if (i < to) {
                 glBegin(GL_LINES);
-                //glVertex2d((x[i]-minX), (y[i]-minY));
-                //glVertex2d((x[to]-minX), (y[to]-minY));
 		glVertex2d(x[i], y[i]);
                 glVertex2d(x[to], y[to]);
                 glEnd();
             }
         }
     }
-    // n_Ì`æiÔj
+    // 地点（赤）
     glColor3f(1.0, 0.0, 0.0);
     glBegin(GL_POINTS);
     for (int i = 0; i < N; i++) {
-      //glVertex2d((x[i]-minX), (y[i]-minY));
       glVertex2d(x[i], y[i]);
     }
     glEnd();
     
-    // ð_iCjÌ`æiÂj
+    // 追加地点（青）
     glColor3f(0.0, 0.0, 1.0);
     glBegin(GL_POINTS);
     for (int i = N; i < total; i++) {
-      //glVertex2d((x[i]-minX), (y[i]-minY));
 	glVertex2d(x[i], y[i]);
     }
     glEnd();
-
-    /*for (int i = 0; i < total; i++) {
-    char label[100];
-    sprintf(label, "C%d (%.1f, %.1f)", i - N + 1, x[i], y[i]);
-    drawText(x[i] + 0.05, y[i] + 0.05, label);
-    }*/
-
-    //glPopMatrix();
-
-    /*glColor3f(0.0, 0.0, 0.0);
-    glPointSize(8.0);
-    glBegin(GL_POINTS);
-    //glVertex2f((currentX - minX), (currentY - minY));
-    glVertex2f((currentX), (currentY));
-    glEnd();*/
 }
 
 void display(void) {
@@ -180,13 +155,8 @@ void display(void) {
     double disX = maxX - minX;
     double disY = maxY - minY;
     
-
-    // \¦{¦in}ÌTCYªLªêÎ©®IÉgå¦ª¬³­Èéj
-    //double zoomRate = 0.5;  // {¦i0.5 = n}Ì50%TCYª\¦³êéj
-
-// ©®Å\¦ÍÍðZo
-double viewWidth = disX / 3.0 * zoom;   // i³Í}100j
-double viewHeight = disY / 3.0 * zoom; 
+    double viewWidth = disX / zoomRate * zoom;
+    double viewHeight = disY / zoomRate * zoom; 
 
     //mainMap
     glViewport(0, 0, windowWidth, windowHeight);
@@ -208,15 +178,12 @@ double viewHeight = disY / 3.0 * zoom;
 
     drawKeyHelp();
 
-    //miniMap
-    //glClearColor(0.7, 0.7, 0.7, 0.7);
-
-    //glPushMatrix();
-    //glScaled(0.25, 0.25, 1.0);
     
+    //miniMap
     int miniMapSize = 200;
     double padX = disX * 0.05, padY = disY * 0.05;
-    glViewport(windowWidth-miniMapSize, windowHeight-miniMapSize, miniMapSize, miniMapSize);
+    glViewport(windowWidth-miniMapSize, windowHeight-miniMapSize,
+	       miniMapSize, miniMapSize);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluOrtho2D(minX - padX, maxX + padX, minY - padY, maxY + padY);
@@ -224,42 +191,46 @@ double viewHeight = disY / 3.0 * zoom;
     glLoadIdentity();
     
     drawMap(1.0, minX, minY, disX, disY);
-    
-   glColor3f(0.6, 0.6, 0.6);
-glBegin(GL_LINE_LOOP);
-glVertex2f(minX - padX*0.5, minY - padY*0.5);
-glVertex2f(maxX + padX*0.5, minY - padY*0.5);
-glVertex2f(maxX + padX*0.5, maxY + padY*0.5);
-glVertex2f(minX - padX*0.5, maxY + padY*0.5);
-glEnd();
 
-double vw = viewWidth, vh = viewHeight;
-double viewMinX = currentX - minX - vw / 2.0;
-double viewMaxX = currentX - minX + vw / 2.0;
-double viewMinY = currentY - minY - vh / 2.0;
-double viewMaxY = currentY - minY + vh / 2.0;
+    //ミニマップの枠線
+    glColor3f(0.6, 0.6, 0.6);
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(minX - padX*0.5, minY - padY*0.5);
+    glVertex2f(maxX + padX*0.5, minY - padY*0.5);
+    glVertex2f(maxX + padX*0.5, maxY + padY*0.5);
+    glVertex2f(minX - padX*0.5, maxY + padY*0.5);
+    glEnd();
 
-glColor3f(0.0, 0.0, 0.0);
-glBegin(GL_LINE_LOOP);
-glVertex2f(viewMinX, viewMinY);
-glVertex2f(viewMaxX, viewMinY);
-glVertex2f(viewMaxX, viewMaxY);
-glVertex2f(viewMinX, viewMaxY);
-glEnd();
+    //ミニマップに表示される現在地
+    double vw = viewWidth, vh = viewHeight;
+    double viewMinX = currentX - minX - vw / 2.0;
+    double viewMaxX = currentX - minX + vw / 2.0;
+    double viewMinY = currentY - minY - vh / 2.0;
+    double viewMaxY = currentY - minY + vh / 2.0;
 
- 
+    glColor3f(0.0, 0.0, 0.0);
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(viewMinX, viewMinY);
+    glVertex2f(viewMaxX, viewMinY);
+    glVertex2f(viewMaxX, viewMaxY);
+    glVertex2f(viewMinX, viewMaxY);
+    glEnd();
 
     glutSwapBuffers();
 }
 
 void init(void) {
-    currentX = (x[MinXIndex()] + x[MaxXIndex()]) / 2.0;
-    currentY = (y[MinYIndex()] + y[MaxYIndex()]) / 2.0;
-    glClearColor(1.0, 1.0, 1.0, 1.0); // wiF
+    minX = x[MinXIndex()];
+    maxX = x[MaxXIndex()];
+    minY = y[MinYIndex()];
+    maxY = y[MaxYIndex()];
+    currentX = (minX + maxX) / 2.0;
+    currentY = (minY + maxY) / 2.0;
+    
+    glClearColor(1.0, 1.0, 1.0, 1.0);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluOrtho2D(-1, 1, -1, 1); // ¼ÌEBhEÀWn
-    
+    gluOrtho2D(-1, 1, -1, 1);
 }
 
 void reshape(int w, int h){
@@ -270,16 +241,16 @@ void reshape(int w, int h){
 
 void keyboard(unsigned char key, int x, int y){
   switch (key) {
-        case 'a':  // ¶Ú®
+        case 'a':  //left
             currentX -= 1 * zoom;
             break;
-        case 'd':  // EÚ®
+        case 'd':  //right
             currentX += 1 * zoom;
             break;
-        case 'w':  // ãÚ®
+        case 'w':  //up
             currentY += 1 * zoom;
             break;
-        case 's':  // ºÚ®
+        case 's':  //down
             currentY -= 1 * zoom;
             break;
         case '+':
@@ -292,11 +263,11 @@ void keyboard(unsigned char key, int x, int y){
             zoom *= 1.1f;
             if (zoom > 5.0f) zoom = 5.0f;
             break;
-        case 27:  // ESCL[
+        case 27:
             exit(0);
             break;
     }
-  printf("X = %f, Y = %f\n", currentX, currentY);
+  //printf("X = %f, Y = %f\n", currentX, currentY);
   glutPostRedisplay();
 }
 
