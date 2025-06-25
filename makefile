@@ -1,4 +1,6 @@
 CC = gcc 
 
+LDLIBS = -lglut -lGL -lGLU -lX11 -lm
+
 .c:
-	$(CC) -Wno-deprecated-declarations -framework GLUT -framework OpenGL $@.c -o $@
+	$(CC) $@.c $(LDLIBS) -o $@
