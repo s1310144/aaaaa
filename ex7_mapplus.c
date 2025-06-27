@@ -11,7 +11,6 @@
 
 #define MAXN         25000
 #define MAXM         200
-#define MAXP         100
 #define MAXQ         100
 #define MAXK         100
 #define MAX_DEG      (MAXM * 2)
@@ -66,19 +65,12 @@ double mapPadRate = 0.05;
 int showMiniMap = 1;
 int showShortestPath = 1;
 int showHelp = 1;
-int displayMode = 0; // 0: 新道含む, 1: 新道除く
-int showErrorMessage = 0;
 float zoom = 0.5f, zoomRate = 3.0f;
 static int startNode = -1;
 static int goalNode = -1;
 QueryResult queryResults[MAXQ];
 int totalQueries = 0;
 int currentQuery = 0;
-double newPointX[MAXP], newPointY[MAXP];          // 新点の入力
-double connectX1[MAXP], connectY1[MAXP];          // 新しい道の始点（新点）
-double connectX2[MAXP], connectY2[MAXP];          // 接続先（既存の道上の点）
-
-int new_segment_count = 0;
 
 /*** 関数プロトタイプ ***/
 double cross(double, double, double, double);
@@ -91,41 +83,15 @@ double dist2(double, double, double, double);
 int add_point(double, double, int*);
 void add_edge(int, int);
 
-int MaxXIndex(void){
-  int m = 0;
-  for(int i=1;i<total;i++){
-    if(x[m]<x[i]) m=i;
-  }
-  return m;
-}
-
-int MinXIndex(void){
-  int m = 0;
-  for(int i=1;i<total;i++){
-    if(x[m]>x[i]) m=i;
-  }
-  return m;
-}
-
-int MaxYIndex(void){
-  int m = 0;
-  for(int i=1;i<total;i++){
-    if(y[m]<y[i]) m=i;
-  }
-  return m;
-}
-
-int MinYIndex(void){
-  int m = 0;
-  for(int i=1;i<total;i++){
-    if(y[m]>y[i]) m=i;
-  }
-  return m;
-}
-
-QueryResult* getCurrentQuerySet() {
-    if (displayMode == 0) return &queryWithNew[currentQuery];
-    else return &queryWithoutNew[currentQuery];
+void getMinMaxIndices(int* minX, int* maxX, int* minY, int* maxY) {
+    int i;
+    *minX = *maxX = *minY = *maxY = 0;
+    for (i = 1; i < total; i++) {
+        if (x[i] < x[*minX]) *minX = i;
+        if (x[i] > x[*maxX]) *maxX = i;
+        if (y[i] < y[*minY]) *minY = i;
+        if (y[i] > y[*maxY]) *maxY = i;
+    }
 }
 
 void drawCircle(double cx, double cy, double r, int num_segments) {
@@ -213,18 +179,10 @@ void drawPathInfo(void) {
     glPushMatrix();
     glLoadIdentity();
 
-    if (showErrorMessage) {
-        glColor3f(1.0, 0.0, 0.0); // 赤色
-        glRasterPos2i(10, 60);    // 位置は調整可能
-        for (char* p = errorMessage; *p; p++) {
-            glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, *p);
-        }
-    }
-
     glColor3f(0.0, 0.0, 0.0);
 
     if (totalQueries > 0) {
-        QueryResult *qr = getCurrentQuerySet();
+        QueryResult *qr = &queryResults[currentQuery];
         int si = qr->start;
         int di = qr->goal;
         int np = qr->numPaths;
@@ -266,7 +224,7 @@ void drawPathInfo(void) {
     glMatrixMode(GL_MODELVIEW);
 }
 
-void drawMap(double disX, double disY){
+void drawMap(double disX, double disY, int isMainMap){
     glPointSize(5.0);
     glLineWidth(1.0);
 
@@ -299,38 +257,66 @@ void drawMap(double disX, double disY){
             }
         }
     }
-
-    glColor3f(1.0, 0.0, 0.0); // 新しい道は赤色
-    glLineWidth(2.0);
-    for (int i = 0; i < new_segment_count; i++) {
-
-        drawCircle(newPointX[i], newPointY[i], dis * 0.005, 20);
-
-        glBegin(GL_LINES);
-        glVertex2d(connectX1[i], connectY1[i]);
-        glVertex2d(connectX2[i], connectY2[i]);
-        glEnd();
-    }
     
     // 地点（主要地点は赤い円）
-    glColor3f(0.8f, 0.1f, 0.1f);
-    for (int i = 0; i < N; i++) {
-        drawCircle(x[i], y[i], dis * 0.005, 20);
-    }
+    //glColor3f(0.8f, 0.1f, 0.1f);
+   // for (int i = 0; i < N; i++) {
+    //    drawCircle(x[i], y[i], disX * 0.005, 20);
+   // }
     
     // 追加地点（薄青い円）
-    glColor3f(0.1f, 0.4f, 0.8f);
-    for (int i = N; i < total; i++) {
-        drawCircle(x[i], y[i], dis * 0.003, 16);
+   // glColor3f(0.1f, 0.4f, 0.8f);
+    //for (int i = N; i < total; i++) {
+     //   drawCircle(x[i], y[i], disX * 0.003, 16);
+    //}
+
+    if (isMainMap) {
+        double dis = sqrt(disX * disX + disY * disY);
+        for (int i = 0; i < total; i++) {
+            char label[100];
+
+            if (i < N) {
+                glColor3f(0.8f, 0.1f, 0.1f);
+                drawCircle(x[i], y[i], disX * 0.005, 20);
+                sprintf(label, "%d", i + 1);
+            }
+            else if ((i - N) % 2 == 0) {
+                glColor3f(0.1f, 0.4f, 0.8f);
+                drawCircle(x[i], y[i], disX * 0.004, 16);
+                sprintf(label, "P%d", (i - N) / 2 + 1);
+            }
+            else {
+                glColor3f(0.2f, 0.6f, 0.2f);
+                drawCircle(x[i], y[i], disX * 0.003, 12);
+                sprintf(label, "C%d", (i - N - 1) / 2 + 1);
+            }
+
+            drawText(x[i] + dis / 500, y[i] + dis / 500, label);
+        }
+    }
+    else {
+        // ミニマップではラベルなし＋色分けのみ
+        for (int i = 0; i < total; i++) {
+            if (i < N) {
+                glColor3f(0.8f, 0.1f, 0.1f);
+                drawCircle(x[i], y[i], disX * 0.005, 20);
+            }
+            else if ((i - N) % 2 == 0) {
+                glColor3f(0.1f, 0.4f, 0.8f);
+                drawCircle(x[i], y[i], disX * 0.004, 16);
+            }
+            else {
+                glColor3f(0.2f, 0.6f, 0.2f);
+                drawCircle(x[i], y[i], disX * 0.003, 12);
+            }
+        }
     }
 
+
     // 1経路ずつ切り替え
-    if (showShortestPath) {
-        QueryResult* qr = getCurrentQuerySet(); // ←ここも修正
-        if (qr->numPaths > 0) {
-            Path* p = &qr->paths[currentPath];
-            drawPath(p);
-        }
+    if (showShortestPath && numPaths > 0) {
+        Path* p = &queryResults[currentQuery].paths[currentPath];
+        drawPath(p);
     }
 }
 
@@ -350,8 +336,6 @@ void display(void) {
     if(currentY - viewHeight / 2 < mapMinY) currentY = mapMinY + viewHeight / 2;
     if(currentY + viewHeight / 2 > mapMaxY) currentY = mapMaxY - viewHeight / 2;
 
-
-
     //mainMap
     glViewport(0, 0, windowWidth, windowHeight);
     glMatrixMode(GL_PROJECTION);
@@ -360,15 +344,15 @@ void display(void) {
            currentY - viewHeight / 2, currentY + viewHeight / 2);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    drawMap(disX, disY);
+    drawMap(disX, disY, 1);
 
     double dis = sqrt(disX * disX + disY * disY);
 
-    for (int i = 0; i < total; i++) {
-    char label[100];
-    sprintf(label, "C%d (%.1f, %.1f)", i - N + 1, x[i], y[i]);
-    drawText(x[i] + dis/500, y[i] + dis/500, label);
-    }
+    //for (int i = 0; i < total; i++) {
+    //char label[100];
+    //sprintf(label, "C%d (%.1f, %.1f)", i - N + 1, x[i], y[i]);
+    //drawText(x[i] + dis/500, y[i] + dis/500, label);
+    //}
 
     // 現在の経路番号表示
     if (showShortestPath && numPaths > 0) {
@@ -403,7 +387,7 @@ void display(void) {
     glVertex2f(mapMinX - padX*framePadRate, mapMaxY + padY*framePadRate);
     glEnd();
 
-    drawMap(disX, disY);
+    drawMap(disX, disY, 0);
     
     //ミニマップの枠線
     glColor3f(0.6, 0.6, 0.6);
@@ -433,10 +417,7 @@ void display(void) {
 }
 
 void init(void) {
-    minX = x[MinXIndex()];
-    maxX = x[MaxXIndex()];
-    minY = y[MinYIndex()];
-    maxY = y[MaxYIndex()];
+    getMinMaxIndices(&minX, &maxX, &minY, &maxY);
     double disX = maxX - minX;
     double disY = maxY - minY;
     double mapPadX = disX*mapPadRate;
@@ -464,12 +445,12 @@ void reshape(int w, int h){
 void mouse(int button, int state, int x, int y) {
     if (state == GLUT_DOWN) {
         if (button == 3) { // ホイールアップ
-            zoom *= 1.1;
-            if (zoom > zoomRate) zoom = zoomRate;
-        }
-        else if (button == 4) { // ホイールダウン
             zoom *= 0.9;
             if (zoom < 0.1) zoom = 0.1;
+        }
+        else if (button == 4) { // ホイールダウン
+            zoom *= 1.1;
+            if (zoom > zoomRate) zoom = zoomRate;
         }
     }
     glutPostRedisplay();
@@ -529,22 +510,6 @@ void keyboard(unsigned char key, int x, int y){
             if (numPaths > 0)
                 currentPath = (currentPath - 1 + numPaths) % numPaths;
             break;
-        case '1':
-            displayMode = 0;
-            currentPath = 0;
-            showErrorMessage = 0;
-            break;
-        case '2':
-            if (queryWithoutNew[currentQuery].numPaths == 0) {
-                showErrorMessage = 1;
-                sprintf(errorMessage, "No path exists without the new road.");
-            }
-            else {
-                displayMode = 1;
-                currentPath = 0;
-                showErrorMessage = 0;  // エラー解除
-            }
-            break;
         case 27:
             exit(0);
             break;
@@ -568,85 +533,6 @@ void draw_window(int argc, char** argv) {
     glutMouseFunc(mouse);
     glutKeyboardFunc(keyboard);
     glutMainLoop();
-}
-
-
-
-void suggest_road_construction(int N, int M, int P,
-    double px[], double py[],
-    int b[], int e[]) {
-
-    int segCount = M;
-    double sx1[MAXM + MAXP], sy1[MAXM + MAXP];
-    double sx2[MAXM + MAXP], sy2[MAXM + MAXP];
-
-    // 既存の辺の座標を格納
-    for (int i = 0; i < M; i++) {
-        sx1[i] = px[b[i]];
-        sy1[i] = py[b[i]];
-        sx2[i] = px[e[i]];
-        sy2[i] = py[e[i]];
-    }
-
-    for (int i = 0; i < P; i++) {
-        double x = newPointX[i];
-        double y = newPointY[i];
-
-        double bestDist2 = 1e300;
-        double bestCx = 0, bestCy = 0;
-        int bestSeg = -1;
-
-        for (int s = 0; s < segCount; s++) {
-            double x1 = sx1[s], y1 = sy1[s];
-            double x2 = sx2[s], y2 = sy2[s];
-            double vx = x2 - x1, vy = y2 - y1;
-            double wx = x - x1, wy = y - y1;
-            double c1 = vx * wx + vy * wy;
-            double c2 = vx * vx + vy * vy;
-            double t = (c2 > EPS) ? (c1 / c2) : 0.0;
-            double cx, cy;
-            if (t <= 0.0) {
-                cx = x1;
-                cy = y1;
-            }
-            else if (t >= 1.0) {
-                cx = x2;
-                cy = y2;
-            }
-            else {
-                cx = x1 + t * vx;
-                cy = y1 + t * vy;
-            }
-            double dx = x - cx;
-            double dy = y - cy;
-            double dist2 = dx * dx + dy * dy;
-
-            if (dist2 + EPS < bestDist2) {
-                bestDist2 = dist2;
-                bestCx = cx;
-                bestCy = cy;
-                bestSeg = s;
-            }
-        }
-
-        // 新しい道の始点と終点座標を保存（OpenGL描画用）
-        connectX1[new_segment_count] = x;
-        connectY1[new_segment_count] = y;
-        connectX2[new_segment_count] = bestCx;
-        connectY2[new_segment_count] = bestCy;
-        new_segment_count++;
-
-        // 既存の辺リストに追加する準備
-        sx1[segCount] = x;
-        sy1[segCount] = y;
-        sx2[segCount] = bestCx;
-        sy2[segCount] = bestCy;
-        segCount++;
-
-        // 座標配列にも追加（マップの点として）
-        px[N + i] = x;
-        py[N + i] = y;
-    }
 }
 
 void disable_edge(int u, int v) {
@@ -830,7 +716,7 @@ int add_point(double px, double py, int *total) {
     return (*total)++;
 }
 
-void add_edge(int u, int v) {
+void add_edge(int u, int v){
     double d = dist(u, v);
     graph[u][gsize[u]].to = v;
     graph[u][gsize[u]++].cost = d;
@@ -885,41 +771,10 @@ void print_path(int from, int to, int *prev) {
     printf("\n");
 }
 
-// 無効化フラグをすべてリセットする関数
-void resetDisabled(void) {
-    for (int u = 0; u < total; u++) {
-        disabled_node[u] = 0;
-        for (int i = 0; i < gsize[u]; i++) {
-            disabled_edge_idx[u][i] = 0;
-        }
-    }
-}
-
-void resetDisabledExcludeNewRoads(void) {
-    resetDisabled();
-
-    // 新道は new_segment_start から new_segment_start + new_segment_count -1 と仮定
-    int new_segment_start = M; // Mは元の道の数
-
-    for (int seg = new_segment_start; seg < new_segment_start + new_segment_count; seg++) {
-        // 辺の両端ノード無効化
-        int u = edge_u[seg];
-        int v = edge_v[seg];
-
-        disabled_node[u] = 1;
-        disabled_node[v] = 1;
-
-        // 辺自体も無効化
-        for (int i = 0; i < gsize[u]; i++) {
-            if (gedge[u][i] == seg) disabled_edge_idx[u][i] = 1;
-        }
-        for (int i = 0; i < gsize[v]; i++) {
-            if (gedge[v][i] == seg) disabled_edge_idx[v][i] = 1;
-        }
-    }
-}
-
 int main(void) {
+    int intersectionCount = 0; // 交差点総数（元からのtotal-Nを把握しても良い）
+    int addedPointsCount = 0;  // P追加点の個数
+
     scanf("%d %d %d %d", &N, &M, &P, &Q);
     total = N;
 
@@ -935,6 +790,7 @@ int main(void) {
         segpts[i][segcnt[i]++] = (PointOnEdge){x[e[i]], y[e[i]], e[i]};
     }
 
+    // 交差判定と交点追加
     for (int i = 0; i < M; i++) {
         for (int j = i + 1; j < M; j++) {
             double ix, iy;
@@ -947,6 +803,7 @@ int main(void) {
         }
     }
 
+    // 点順序整列と辺追加
     for (int i = 0; i < M; i++) {
         PointOnEdge *pts = segpts[i];
         int cnt = segcnt[i];
@@ -963,68 +820,131 @@ int main(void) {
         }
     }
 
-    for (int i = 0; i < P; i++) {
-        scanf("%lf %lf", &newPointX[i], &newPointY[i]);
-    }
+    // --- 5. P個の追加地点の処理（小課題777の内容） ---
+// 既存の道路網と追加済み道路網を使って繋ぐ点を決定し、
+// 新たにsegpts[]やsegcnt[]、辺を更新する
 
-    suggest_road_construction(N, M, P, X, Y, b, e);
-    new_segment_count = P;
+for (int p = 0; p < P; p++) {
+    double nx, ny;
+    scanf("%lf %lf", &nx, &ny);
 
-    char s[10], t[10];
-    char output[100][10000];
-    int output_count = 0;
+    double bestDist2 = 1e300;
+    double bestCx = 0, bestCy = 0;
+    int bestSeg = -1;
 
-    for (int q = 0; q < Q; q++) {
-        int si = -1, di = -1, k = 1;
-        scanf("%s %s %d", s, t, &k);
-
-        si = (s[0] == 'C') ? N + atoi(s + 1) - 1 : atoi(s) - 1;
-        di = (t[0] == 'C') ? N + atoi(t + 1) - 1 : atoi(t) - 1;
-
-        if (si < 0 || si >= total || di < 0 || di >= total) {
-            continue;
-        }
-
-        // 新道含む場合
-        resetDisabled();
-        int k_result_with = yen_k_shortest(si, di, k, paths, total);
-        if (k_result_with > 0) {
-            QueryResult* qr = &queryWithNew[totalQWith++];
-            qr->start = si;
-            qr->goal = di;
-            qr->numPaths = k_result_with;
-            for (int i = 0; i < k_result_with; i++) {
-                qr->paths[i] = paths[i];
+    // 既存の全ての道路セグメント(拡張済み)を対象に最短距離点を探索
+    for (int s = 0; s < M + addedPointsCount; s++) {
+        // s番目の道路の区間の点列（segpts[s]）を利用
+        PointOnEdge *pts = segpts[s];
+        int cnt = segcnt[s];
+        // 道路区間は複数の点で分割されているため、区間ごとに最短点を求める
+        for (int idx = 0; idx + 1 < cnt; idx++) {
+            double x1 = pts[idx].x, y1 = pts[idx].y;
+            double x2 = pts[idx + 1].x, y2 = pts[idx + 1].y;
+            double vx = x2 - x1;
+            double vy = y2 - y1;
+            double wx = nx - x1;
+            double wy = ny - y1;
+            double c1 = vx * wx + vy * wy;
+            double c2 = vx * vx + vy * vy;
+            double t = (c2 > EPS) ? (c1 / c2) : 0.0;
+            double cx, cy;
+            if (t <= 0.0) {
+                cx = x1; cy = y1;
+            } else if (t >= 1.0) {
+                cx = x2; cy = y2;
+            } else {
+                cx = x1 + t * vx; cy = y1 + t * vy;
             }
-        }
-        else {
-            QueryResult* qr = &queryWithNew[totalQWith++];
-            qr->start = si;
-            qr->goal = di;
-            qr->numPaths = 0;
-        }
-
-        // 新道除く場合
-        resetDisabledExcludeNewRoads();
-        int k_result_without = yen_k_shortest(si, di, k, paths, total);
-        if (k_result_without > 0) {
-            QueryResult* qr = &queryWithoutNew[totalQWithout++];
-            qr->start = si;
-            qr->goal = di;
-            qr->numPaths = k_result_without;
-            for (int i = 0; i < k_result_without; i++) {
-                qr->paths[i] = paths[i];
+            double dx = nx - cx;
+            double dy = ny - cy;
+            double dist2 = dx * dx + dy * dy;
+            if (dist2 + EPS < bestDist2) {
+                bestDist2 = dist2;
+                bestCx = cx;
+                bestCy = cy;
+                bestSeg = s;
             }
-        }
-        else {
-            QueryResult* qr = &queryWithoutNew[totalQWithout++];
-            qr->start = si;
-            qr->goal = di;
-            qr->numPaths = 0;
+            // tie-breakは早いセグメント番号優先でOK（forループ順序で保証）
         }
     }
 
+    // 新地点を座標配列に追加
+    x[total] = nx;
+    y[total] = ny;
 
+    // 新交差点（接続点）を座標配列に追加
+    x[total + 1] = bestCx;
+    y[total + 1] = bestCy;
+
+    // 新たな道路区間を追加
+    // bestSegに新しい点を接続するためsegptsとsegcntも更新
+    // 既存の道路区間の点列に bestCx,bestCy 点を追加する
+    // (bestSegのsegptsにbestCx,bestCy点を入れる)
+    segpts[bestSeg][segcnt[bestSeg]++] = (PointOnEdge){bestCx, bestCy, total + 1};
+
+    // 追加点用の新しい道路セグメントも作成
+    int newSegIndex = M + addedPointsCount;
+    segpts[newSegIndex][0] = (PointOnEdge){nx, ny, total};
+    segpts[newSegIndex][1] = (PointOnEdge){bestCx, bestCy, total + 1};
+    segcnt[newSegIndex] = 2;
+
+    // 新しい道路の本数を増やす
+    addedPointsCount++;
+
+    // 新しい辺を追加 (totalは追加点の番号、total+1は交差点の番号)
+    add_edge(total, total + 1);
+
+    // 交差点数も増える（追加点の接続点）
+    intersectionCount++;
+
+    // 点の総数を2増やす（追加点と接続点）
+    total += 2;
+}
+
+    // Q==0の場合はパス
+    if (Q > 0) {
+        // 元のQ処理は残すが出力はしない（OpenGLで描画）
+        for (int q = 0; q < Q; q++) {
+            int si = -1, di = -1, k = 1;
+            char s[10], t[10];
+            scanf("%s %s %d", s, t, &k);
+
+            si = (s[0] == 'C') ? N + atoi(s + 1) - 1 : atoi(s) - 1;
+            di = (t[0] == 'C') ? N + atoi(t + 1) - 1 : atoi(t) - 1;
+
+            if (si < 0 || si >= total || di < 0 || di >= total) {
+                // 異常入力は無視 or OpenGL側でNA表示用のフラグを立てる
+                continue;
+            }
+
+            // 無効化リセット
+            for (int u = 0; u < total; u++) {
+                disabled_node[u] = 0;
+                for (int e = 0; e < gsize[u]; e++) disabled_edge_idx[u][e] = 0;
+            }
+
+            int k_result = yen_k_shortest(si, di, k, paths, total);
+            numPaths = k_result;
+            currentPath = 0;
+            startNode = si;
+            goalNode = di;
+
+            if (k_result == 0) {
+                // OpenGL側でNA表示する場合はここでフラグ立てる
+                continue;
+            }
+
+            // Yenの結果をqueryResultsに保存（変更なし）
+            QueryResult* qr = &queryResults[totalQueries++];
+            qr->start = si;
+            qr->goal = di;
+            qr->numPaths = k_result;
+            for (int i = 0; i < k_result; i++) {
+                qr->paths[i] = paths[i];  // コピー
+            }
+        }
+    }
 
     // OpenGL
     int fake_argc = 1;
