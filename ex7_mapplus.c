@@ -11,6 +11,7 @@
 
 #define MAXN         25000
 #define MAXM         200
+#define MAXP         100
 #define MAXQ         100
 #define MAXK         100
 #define MAX_DEG      (MAXM * 2)
@@ -26,6 +27,7 @@ typedef struct {
 typedef struct {
     double x, y;
     int id;
+    int type;
 } PointOnEdge;
 
 typedef struct {               // 追加: Path構造体
@@ -83,14 +85,14 @@ double dist2(double, double, double, double);
 int add_point(double, double, int*);
 void add_edge(int, int);
 
-void getMinMaxIndices(int* minX, int* maxX, int* minY, int* maxY) {
-    int i;
-    *minX = *maxX = *minY = *maxY = 0;
-    for (i = 1; i < total; i++) {
-        if (x[i] < x[*minX]) *minX = i;
-        if (x[i] > x[*maxX]) *maxX = i;
-        if (y[i] < y[*minY]) *minY = i;
-        if (y[i] > y[*maxY]) *maxY = i;
+void getMinMaxValues(double* minX, double* maxX, double* minY, double* maxY) {
+    *minX = *maxX = x[0];
+    *minY = *maxY = y[0];
+    for (int i = 1; i < total; i++) {
+        if (x[i] < *minX) *minX = x[i];
+        if (x[i] > *maxX) *maxX = x[i];
+        if (y[i] < *minY) *minY = y[i];
+        if (y[i] > *maxY) *maxY = y[i];
     }
 }
 
@@ -107,7 +109,7 @@ void drawCircle(double cx, double cy, double r, int num_segments) {
 }
 
 void drawText(float x, float y, const char *text){
-  glColor3f(0.f, 1.f, 0.f); //
+  glColor3f(0.0f, 0.3f, 0.0f); //
   glRasterPos2f(x, y);
   while(*text){
     glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *text);
@@ -280,15 +282,15 @@ void drawMap(double disX, double disY, int isMainMap){
                 drawCircle(x[i], y[i], disX * 0.005, 20);
                 sprintf(label, "%d", i + 1);
             }
-            else if ((i - N) % 2 == 0) {
+            else if (i < N + P) {
                 glColor3f(0.1f, 0.4f, 0.8f);
                 drawCircle(x[i], y[i], disX * 0.004, 16);
-                sprintf(label, "P%d", (i - N) / 2 + 1);
+                sprintf(label, "P%d", i - N + 1);
             }
             else {
-                glColor3f(0.2f, 0.6f, 0.2f);
+                glColor3f(0.1f, 0.5f, 0.1f);
                 drawCircle(x[i], y[i], disX * 0.003, 12);
-                sprintf(label, "C%d", (i - N - 1) / 2 + 1);
+                sprintf(label, "C%d", i - N - P + 1);
             }
 
             drawText(x[i] + dis / 500, y[i] + dis / 500, label);
@@ -417,7 +419,7 @@ void display(void) {
 }
 
 void init(void) {
-    getMinMaxIndices(&minX, &maxX, &minY, &maxY);
+    getMinMaxValues(&minX, &maxX, &minY, &maxY);
     double disX = maxX - minX;
     double disY = maxY - minY;
     double mapPadX = disX*mapPadRate;
@@ -869,37 +871,41 @@ for (int p = 0; p < P; p++) {
         }
     }
 
+    int addedPointIdx = N + addedPointsCount;
+    int connectPointIdx = N + addedPointsCount + intersectionCount;
+
     // 新地点を座標配列に追加
-    x[total] = nx;
-    y[total] = ny;
+    x[addedPointIdx] = nx;
+    y[addedPointIdx] = ny;
 
     // 新交差点（接続点）を座標配列に追加
-    x[total + 1] = bestCx;
-    y[total + 1] = bestCy;
+    x[connectPointIdx] = bestCx;
+    y[connectPointIdx] = bestCy;
 
     // 新たな道路区間を追加
     // bestSegに新しい点を接続するためsegptsとsegcntも更新
     // 既存の道路区間の点列に bestCx,bestCy 点を追加する
     // (bestSegのsegptsにbestCx,bestCy点を入れる)
-    segpts[bestSeg][segcnt[bestSeg]++] = (PointOnEdge){bestCx, bestCy, total + 1};
+    segpts[bestSeg][segcnt[bestSeg]++] = (PointOnEdge){bestCx, bestCy, connectPointIdx};
 
     // 追加点用の新しい道路セグメントも作成
     int newSegIndex = M + addedPointsCount;
-    segpts[newSegIndex][0] = (PointOnEdge){nx, ny, total};
-    segpts[newSegIndex][1] = (PointOnEdge){bestCx, bestCy, total + 1};
-    segcnt[newSegIndex] = 2;
+    segpts[newSegIndex][0] = (PointOnEdge){nx, ny, addedPointIdx};
+    segpts[newSegIndex][1] = (PointOnEdge){bestCx, bestCy, connectPointIdx};
+     segcnt[newSegIndex] = 2;
 
+
+    // 新しい辺を追加
+    add_edge(addedPointIdx, connectPointIdx);
+    
     // 新しい道路の本数を増やす
     addedPointsCount++;
-
-    // 新しい辺を追加 (totalは追加点の番号、total+1は交差点の番号)
-    add_edge(total, total + 1);
 
     // 交差点数も増える（追加点の接続点）
     intersectionCount++;
 
-    // 点の総数を2増やす（追加点と接続点）
-    total += 2;
+    // 点の総数を増やす（N+追加点+接続点）
+    total = N + addedPointsCount + intersectionCount;
 }
 
     // Q==0の場合はパス
@@ -911,7 +917,7 @@ for (int p = 0; p < P; p++) {
             scanf("%s %s %d", s, t, &k);
 
             si = (s[0] == 'C') ? N + atoi(s + 1) - 1 : atoi(s) - 1;
-            di = (t[0] == 'C') ? N + atoi(t + 1) - 1 : atoi(t) - 1;
+            di = (t[0] == 'C') ? N + atoi(t + 1) - 1 : atoi(t) - 1;	    
 
             if (si < 0 || si >= total || di < 0 || di >= total) {
                 // 異常入力は無視 or OpenGL側でNA表示用のフラグを立てる
